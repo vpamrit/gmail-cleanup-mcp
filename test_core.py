@@ -8,21 +8,35 @@ import core
 
 
 def test_build_query_basic():
-    assert core.build_query("promotions") == "category:promotions -in:trash"
+    assert (
+        core.build_query("promotions")
+        == "category:promotions -in:trash -is:starred -has:userlabels"
+    )
 
 
 def test_build_query_with_age():
     assert (
         core.build_query("primary", "30d")
-        == "category:primary older_than:30d -in:trash"
+        == "category:primary older_than:30d -in:trash -is:starred -has:userlabels"
     )
+
+
+def test_build_query_protect_spares_starred_and_labelled():
+    q = core.build_query("primary", "60d")
+    assert "-is:starred" in q
+    assert "-has:userlabels" in q
+
+
+def test_build_query_protect_false_omits_guards():
+    assert core.build_query("promotions", protect=False) == "category:promotions -in:trash"
+    assert "-is:starred" not in core.build_query("primary", "60d", protect=False)
 
 
 def test_build_query_all_categories_have_tokens():
     for name in core.CATEGORY_QUERIES:
         q = core.build_query(name)
         assert q.startswith(f"category:{name}")
-        assert q.endswith("-in:trash")
+        assert "-in:trash" in q
 
 
 def test_primary_is_a_known_category():

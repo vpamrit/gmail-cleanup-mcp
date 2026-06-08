@@ -141,13 +141,28 @@ def get_account_email(service) -> str:
     return profile.get("emailAddress", "")
 
 
-def build_query(category: str, older_than: str | None = None) -> str:
-    """Build a Gmail search query for one category, excluding Trash."""
+def build_query(
+    category: str, older_than: str | None = None, protect: bool = True
+) -> str:
+    """Build a Gmail search query for one category, excluding Trash.
+
+    Gmail categories are mutually exclusive, so a query for one category never
+    matches mail in another (cleaning Promotions can't touch Primary, etc.).
+
+    When ``protect`` is True (the default) we additionally spare anything you've
+    explicitly kept -- starred mail, and mail you've filed under a custom label
+    (e.g. a labelled Primary message) -- so cleaning a category never removes
+    something you've flagged or filed.
+    """
     query = CATEGORY_QUERIES[category]
     if older_than:
         query += f" older_than:{older_than}"
     # Skip anything already in Trash so counts are honest.
     query += " -in:trash"
+    if protect:
+        # -is:starred     : keep starred mail
+        # -has:userlabels : keep anything filed under a user-created label
+        query += " -is:starred -has:userlabels"
     return query
 
 
@@ -191,6 +206,8 @@ def trash_ids(service, ids: list[str], progress=None) -> int:
     return total
 
 
-def count_category(service, category: str, older_than: str | None = None) -> int:
+def count_category(
+    service, category: str, older_than: str | None = None, protect: bool = True
+) -> int:
     """Return how many messages a category currently matches (read-only)."""
-    return len(list_message_ids(service, build_query(category, older_than)))
+    return len(list_message_ids(service, build_query(category, older_than, protect)))

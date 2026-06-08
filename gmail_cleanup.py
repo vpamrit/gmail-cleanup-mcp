@@ -60,6 +60,12 @@ def parse_args():
         action="store_true",
         help="Actually move messages to Trash. Without this flag it is a dry run.",
     )
+    parser.add_argument(
+        "--include-flagged",
+        action="store_true",
+        help="Also affect starred or custom-labelled mail. By default these are "
+        "spared (e.g. a labelled Primary message is never trashed).",
+    )
     return parser.parse_args()
 
 
@@ -79,15 +85,18 @@ def main():
     except core.CredentialsError as err:
         sys.exit(str(err))
 
+    protect = not args.include_flagged
+
     mode = "LIVE (moving to Trash)" if args.confirm else "DRY RUN (no changes)"
     print(f"Mode: {mode}")
     if args.older_than:
         print(f"Age filter: older than {args.older_than}")
+    print(f"Protecting starred/labelled mail: {'no' if args.include_flagged else 'yes'}")
     print(f"Categories: {', '.join(args.categories)}\n")
 
     grand_total = 0
     for category in args.categories:
-        query = core.build_query(category, args.older_than)
+        query = core.build_query(category, args.older_than, protect)
         print(f"[{category}] query: {query}")
         try:
             ids = core.list_message_ids(service, query)

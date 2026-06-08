@@ -46,6 +46,10 @@ http://localhost:8000
   the CLI (default) all show counts before anything moves.
 - **Primary is guarded.** Your important personal mail can only be trashed with
   an age filter set, plus a typed `PRIMARY` confirmation.
+- **Starred & labelled mail is spared.** Categories are mutually exclusive
+  (cleaning Promotions can't touch Primary), and by default anything you've
+  starred or filed under a custom label — e.g. a labelled Primary message — is
+  never trashed. (CLI power users can override with `--include-flagged`.)
 
 ---
 
@@ -180,12 +184,50 @@ Age tokens (`--older-than`) use Gmail's format: `30d`, `6m`, `1y`.
 
 ### Run automatically on a schedule (optional)
 
-Add a daily cron job (`crontab -e`). This trashes promotions/updates/social
-older than 30 days, every day at 8am:
+**Simple cron** (`crontab -e`) — trashes promotions/updates/social older than 30
+days, daily at 8am:
 
 ```
 0 8 * * * cd ~/path/to/gmail-cleanup-mcp && .venv/bin/python gmail_cleanup.py --older-than 30d --confirm >> cleanup.log 2>&1
 ```
+
+**systemd user timer** (recommended on Linux — catches up if the machine was
+off). Create `~/.config/systemd/user/gmail-cleanup.service`:
+
+```ini
+[Service]
+Type=oneshot
+WorkingDirectory=%h/path/to/gmail-cleanup-mcp
+ExecStart=%h/path/to/gmail-cleanup-mcp/.venv/bin/python %h/path/to/gmail-cleanup-mcp/gmail_cleanup.py --categories promotions social updates forums --confirm
+ExecStart=%h/path/to/gmail-cleanup-mcp/.venv/bin/python %h/path/to/gmail-cleanup-mcp/gmail_cleanup.py --categories primary --older-than 60d --confirm
+```
+
+and `~/.config/systemd/user/gmail-cleanup.timer`:
+
+```ini
+[Timer]
+OnCalendar=Mon *-*-* 08:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Then enable it (and run once now to test):
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now gmail-cleanup.timer
+systemctl --user start gmail-cleanup.service   # optional: run immediately
+systemctl --user list-timers gmail-cleanup.timer
+journalctl --user -u gmail-cleanup.service     # see what it did
+```
+
+> **Token longevity:** for any unattended schedule, set the OAuth consent screen
+> to **In production** (APIs & Services → OAuth consent screen → *Publish app*).
+> In *Testing* mode Google expires the refresh token after 7 days, which would
+> break the schedule weekly. To run even while logged out:
+> `loginctl enable-linger $USER`.
 
 ---
 
