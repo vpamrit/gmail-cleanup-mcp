@@ -142,7 +142,10 @@ def get_account_email(service) -> str:
 
 
 def build_query(
-    category: str, older_than: str | None = None, protect: bool = True
+    category: str,
+    older_than: str | None = None,
+    protect: bool = True,
+    newer_than: str | None = None,
 ) -> str:
     """Build a Gmail search query for one category, excluding Trash.
 
@@ -153,10 +156,17 @@ def build_query(
     explicitly kept -- starred mail, and mail you've filed under a custom label
     (e.g. a labelled Primary message) -- so cleaning a category never removes
     something you've flagged or filed.
+
+    ``older_than`` and ``newer_than`` take Gmail age tokens (e.g. '30d', '6m').
+    Combining them yields a window: e.g. older_than='7d' + newer_than='30d'
+    matches mail between 7 and 30 days old -- used to detect "recent" mail still
+    in scope for a confirmation gate.
     """
     query = CATEGORY_QUERIES[category]
     if older_than:
         query += f" older_than:{older_than}"
+    if newer_than:
+        query += f" newer_than:{newer_than}"
     # Skip anything already in Trash so counts are honest.
     query += " -in:trash"
     if protect:
@@ -207,7 +217,15 @@ def trash_ids(service, ids: list[str], progress=None) -> int:
 
 
 def count_category(
-    service, category: str, older_than: str | None = None, protect: bool = True
+    service,
+    category: str,
+    older_than: str | None = None,
+    protect: bool = True,
+    newer_than: str | None = None,
 ) -> int:
     """Return how many messages a category currently matches (read-only)."""
-    return len(list_message_ids(service, build_query(category, older_than, protect)))
+    return len(
+        list_message_ids(
+            service, build_query(category, older_than, protect, newer_than)
+        )
+    )

@@ -32,6 +32,19 @@ def test_build_query_protect_false_omits_guards():
     assert "-is:starred" not in core.build_query("primary", "60d", protect=False)
 
 
+def test_build_query_with_newer_than():
+    assert (
+        core.build_query("primary", newer_than="30d")
+        == "category:primary newer_than:30d -in:trash -is:starred -has:userlabels"
+    )
+
+
+def test_build_query_age_window_combines_older_and_newer():
+    q = core.build_query("promotions", older_than="7d", newer_than="30d")
+    assert "older_than:7d" in q
+    assert "newer_than:30d" in q
+
+
 def test_build_query_all_categories_have_tokens():
     for name in core.CATEGORY_QUERIES:
         q = core.build_query(name)

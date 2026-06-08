@@ -26,7 +26,8 @@ import sys
 import anyio
 import uvicorn
 from googleapiclient.errors import HttpError
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import FileResponse, JSONResponse, RedirectResponse
 from starlette.routing import Mount, Route
@@ -38,11 +39,65 @@ HOST = "127.0.0.1"
 PORT = 8000
 BASE = os.path.dirname(os.path.abspath(__file__))
 
-# Stateless + JSON responses keep the HTTP transport simple: every request is
-# self-contained (no session id to track) and replies are plain JSON, which is
-# easy for clients -- and for curl -- to consume. The default
+# Stateful + SSE responses (the SDK defaults). Elicitation needs them: the
+# server must send an `elicitation/create` request to the client mid-tool-call
+# and await the reply, which requires a persistent session and an open SSE
+# stream -- impossible with stateless_http / json_response. The default
 # streamable_http_path is "/mcp", so the SDK's app already serves there.
-mcp = FastMCP("gmail-cleaner", stateless_http=True, json_response=True)
+mcp = FastMCP("gmail-cleaner")
+
+# Confirmation thresholds. A trash run asks the human first when it is large,
+# touches recent mail, or hits the Primary inbox -- see _needs_confirmation.
+RECENT_WINDOW = "30d"  # mail newer than this is "recent" and worth confirming
+COUNT_THRESHOLD = 50  # trashing more than this many messages asks first
+# Tokens accepted as a fallback ack when the client can't show an elicitation
+# prompt (e.g. a headless/autonomous run). Case-insensitive.
+CONFIRM_TOKENS = {"PRIMARY", "CONFIRM"}
+
+
+class ConfirmTrash(BaseModel):
+    """Schema for the elicitation prompt shown to the human before a risky run."""
+
+    confirm: bool = Field(
+        description="Move these messages to Trash? Recoverable for ~30 days."
+    )
+
+
+def _needs_confirmation(total: int, recent: int, categories: list[str]) -> bool:
+    """True when a trash run is risky enough to require a human ack."""
+    return (
+        total > COUNT_THRESHOLD
+        or recent > 0
+        or core.PRIMARY in categories
+    )
+
+
+def _confirm_message(total: int, recent: int, categories: list[str]) -> str:
+    """Human-readable summary of what's about to be trashed."""
+    parts = [f"About to move {total} message(s) to Trash"]
+    if recent:
+        parts.append(f"{recent} newer than {RECENT_WINDOW}")
+    if core.PRIMARY in categories:
+        parts.append("includes your Primary inbox")
+    return "; ".join(parts) + ". Proceed?"
+
+
+async def _confirm(ctx: Context | None, message: str, token: str) -> bool:
+    """Get a human go/no-go.
+
+    Prefers MCP elicitation (a real prompt to the user via the client). If the
+    client doesn't support elicitation -- e.g. a headless/autonomous run -- we
+    fall back to a typed confirmation token, and otherwise fail closed.
+    """
+    if ctx is not None:
+        try:
+            result = await ctx.elicit(message=message, schema=ConfirmTrash)
+            return result.action == "accept" and bool(
+                result.data and result.data.confirm
+            )
+        except Exception:  # noqa: BLE001 - client lacks elicitation -> fall back
+            pass
+    return token.strip().upper() in CONFIRM_TOKENS
 
 
 # --------------------------------------------------------------------------- #
@@ -126,28 +181,59 @@ async def preview_cleanup(categories: list[str], older_than: str = "") -> dict:
 
 @mcp.tool()
 async def trash_cleanup(
-    categories: list[str], older_than: str = "", confirm_primary: str = ""
+    categories: list[str],
+    older_than: str = "",
+    confirm_primary: str = "",
+    ctx: Context = None,
 ) -> dict:
     """Move matching messages to Trash. Recoverable ~30 days; never permanent.
 
-    Same arguments as preview_cleanup. SAFETY: trashing 'primary' (the user's
-    important personal mail) requires BOTH older_than to be set AND
-    confirm_primary == 'PRIMARY'. Confirm counts with the user first.
+    Same arguments as preview_cleanup. SAFETY: before trashing, the human is
+    asked to confirm (via MCP elicitation) whenever the run is large
+    (>50 messages), touches recent mail (newer than 30 days), or includes the
+    Primary inbox. If the client can't show a prompt (e.g. an autonomous run),
+    pass confirm_primary='CONFIRM' (or 'PRIMARY') to ack; otherwise it fails
+    closed and trashes nothing. Trashing 'primary' additionally requires
+    older_than to be set. Run preview_cleanup and report counts first.
     """
     _require_auth()
     cats, age, err = _validate(categories, older_than, require_primary_age=True)
     if err:
         raise ValueError(err)
-    if core.PRIMARY in cats and confirm_primary.strip().upper() != "PRIMARY":
-        raise ValueError(
-            "Refusing to trash Primary without confirm_primary='PRIMARY'."
-        )
+
     service = await anyio.to_thread.run_sync(core.get_service)
-    trashed = {}
+
+    # Plan first: gather the ids we'd trash and how many are recent, so we can
+    # decide whether to ask the human before changing anything.
+    plan: dict[str, list[str]] = {}
+    total = 0
+    recent = 0
     for category in cats:
         ids = await anyio.to_thread.run_sync(
             core.list_message_ids, service, core.build_query(category, age)
         )
+        plan[category] = ids
+        total += len(ids)
+        # "recent" = in-scope mail (respecting any age filter) newer than 30d.
+        recent += await anyio.to_thread.run_sync(
+            core.count_category, service, category, age, True, RECENT_WINDOW
+        )
+
+    if total == 0:
+        return {"trashed": {c: 0 for c in cats}, "total": 0}
+
+    if _needs_confirmation(total, recent, cats):
+        message = _confirm_message(total, recent, cats)
+        if not await _confirm(ctx, message, confirm_primary):
+            return {
+                "cancelled": True,
+                "reason": "User did not confirm.",
+                "total": total,
+                "recent": recent,
+            }
+
+    trashed = {}
+    for category, ids in plan.items():
         trashed[category] = await anyio.to_thread.run_sync(
             core.trash_ids, service, ids
         )
