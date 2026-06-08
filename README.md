@@ -54,8 +54,8 @@ http://localhost:8000
 Requires Python 3.10.7+.
 
 ```bash
-git clone https://github.com/vpamrit/gmail-cleanup.git
-cd gmail-cleanup
+git clone https://github.com/vpamrit/gmail-cleanup-mcp.git
+cd gmail-cleanup-mcp
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -127,8 +127,8 @@ claude mcp add gmail-cleaner --transport http http://localhost:8000/mcp
 {
   "mcpServers": {
     "gmail-cleaner": {
-      "command": "/absolute/path/to/gmail-cleanup/.venv/bin/python",
-      "args": ["/absolute/path/to/gmail-cleanup/server.py", "--stdio"]
+      "command": "/absolute/path/to/gmail-cleanup-mcp/.venv/bin/python",
+      "args": ["/absolute/path/to/gmail-cleanup-mcp/server.py", "--stdio"]
     }
   }
 }
@@ -184,7 +184,7 @@ Add a daily cron job (`crontab -e`). This trashes promotions/updates/social
 older than 30 days, every day at 8am:
 
 ```
-0 8 * * * cd ~/path/to/gmail-cleanup && .venv/bin/python gmail_cleanup.py --older-than 30d --confirm >> cleanup.log 2>&1
+0 8 * * * cd ~/path/to/gmail-cleanup-mcp && .venv/bin/python gmail_cleanup.py --older-than 30d --confirm >> cleanup.log 2>&1
 ```
 
 ---
