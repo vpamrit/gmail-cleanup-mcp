@@ -44,6 +44,10 @@ http://localhost:8000
   deletion with this scope. Anything trashed is recoverable for ~30 days.
 - **Dry-run first.** The web app (Preview), the MCP `preview_cleanup` tool, and
   the CLI (default) all show counts before anything moves.
+- **It asks before risky runs.** Over MCP, `trash_cleanup` uses **elicitation**
+  to prompt you for a yes/no before trashing anything large (>50 messages),
+  recent (newer than 30 days), or in Primary — and fails closed if it can't ask.
+  See [Confirmation prompts](#confirmation-prompts-mcp-elicitation).
 - **Primary is guarded.** Your important personal mail can only be trashed with
   an age filter set, plus a typed `PRIMARY` confirmation.
 - **Starred & labelled mail is spared.** Categories are mutually exclusive
@@ -145,6 +149,45 @@ Exposed tools:
 | `account_status` | Is it connected? Which mailbox? (read-only) |
 | `preview_cleanup(categories, older_than)` | Count what *would* be trashed (read-only) |
 | `trash_cleanup(categories, older_than, confirm_primary)` | Move matching mail to Trash |
+
+### Confirmation prompts (MCP elicitation)
+
+`trash_cleanup` doesn't blindly trash whatever the assistant asks for. Before it
+moves anything, it *plans* the run (gathers the matching message ids and counts
+how many are recent), and if the run looks risky it asks **you** — the human — to
+confirm first, using MCP **elicitation**.
+
+Elicitation is the MCP mechanism that lets a server pause mid-tool-call and send
+an `elicitation/create` request back through the client to the user. The client
+shows a yes/no prompt ("Move these N messages to Trash? Recoverable for ~30
+days."); the tool blocks until you answer, then proceeds or aborts. This is why
+the server runs in stateful + SSE mode — elicitation needs a persistent session
+and an open stream to round-trip that request (see `server.py`).
+
+**When it asks (the rules).** A confirmation is required if *any* of these are
+true for the planned run:
+
+| Trigger | Threshold |
+|---------|-----------|
+| **Large run** | more than **50** messages would be trashed |
+| **Recent mail** | **any** matching message is newer than **30 days** |
+| **Primary inbox** | `primary` is among the categories |
+
+If none apply (e.g. a small sweep of old Promotions), it just runs — no prompt.
+
+**If the client can't prompt.** Some clients don't support elicitation, and
+headless/autonomous runs (cron-style) have no human to ask. In that case the
+tool **fails closed** — it trashes *nothing* — unless you explicitly pre-ack by
+passing `confirm_primary='CONFIRM'` (or `'PRIMARY'`, case-insensitive). That
+token is the "I know this is risky, do it anyway" switch for unattended use.
+
+**Primary has an extra rule.** On top of the confirmation above, trashing
+`primary` *always* requires an `older_than` age filter — you can never wipe all
+of Primary in one call. This is enforced in the tool itself, not just the UI.
+
+> Recommended flow: call `preview_cleanup` first, report the counts, then call
+> `trash_cleanup`. For anything large, recent, or touching Primary, expect (and
+> honor) the confirmation prompt.
 
 Quick check that the tools are live (with the server running):
 
