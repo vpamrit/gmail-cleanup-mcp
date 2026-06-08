@@ -1,0 +1,15 @@
+# Secrets — NEVER commit these. They grant access to your mailbox.
+credentials.json
+token.json
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Logs
+cleanup.log
+
+# Local tool / editor state
+.omc/
+.pytest_cache/

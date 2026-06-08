@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gmail Cleaner</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">✉</span> Gmail&nbsp;Cleaner</div>
+      <div id="account" class="account" hidden></div>
+    </header>
+
+    <!-- Connect gate: shown until we hold a valid token -->
+    <section id="connect-card" class="card" hidden>
+      <h1>Connect your mailbox</h1>
+      <p class="muted">
+        Authorize Gmail Cleaner to read your message counts and move mail to
+        Trash. A Google sign-in window will open. Mail is only ever
+        <strong>moved to Trash</strong> (recoverable ~30&nbsp;days) — it can
+        never be permanently deleted.
+      </p>
+      <button id="connect-btn" class="btn btn-primary">Connect Gmail</button>
+      <p id="connect-status" class="status" role="status"></p>
+    </section>
+
+    <!-- Main cleanup panel -->
+    <section id="cleanup" class="card" hidden>
+      <h1>Choose what to clean up</h1>
+      <p class="muted">
+        Preview shows counts only. Nothing moves until you click
+        <em>Move to Trash</em> and confirm.
+      </p>
+
+      <fieldset class="categories">
+        <legend>Smart categories</legend>
+        <label class="cat"><input type="checkbox" value="promotions" checked />
+          <span class="cat-name">Promotions</span><span class="cat-count" data-count="promotions">—</span></label>
+        <label class="cat"><input type="checkbox" value="updates" checked />
+          <span class="cat-name">Updates</span><span class="cat-count" data-count="updates">—</span></label>
+        <label class="cat"><input type="checkbox" value="social" />
+          <span class="cat-name">Social</span><span class="cat-count" data-count="social">—</span></label>
+        <label class="cat"><input type="checkbox" value="forums" />
+          <span class="cat-name">Forums</span><span class="cat-count" data-count="forums">—</span></label>
+      </fieldset>
+
+      <fieldset class="categories danger">
+        <legend>⚠ Primary — your important personal mail</legend>
+        <p class="muted small">
+          Requires an age filter and a typed confirmation. Use this to clear
+          out <em>old</em> personal mail only.
+        </p>
+        <label class="cat"><input type="checkbox" id="primary-cb" value="primary" />
+          <span class="cat-name">Primary</span><span class="cat-count" data-count="primary">—</span></label>
+      </fieldset>
+
+      <div class="age">
+        <label for="age">Only mail older than</label>
+        <select id="age">
+          <option value="">any age</option>
+          <option value="30d">30 days</option>
+          <option value="6m">6 months</option>
+          <option value="1y" selected>1 year</option>
+          <option value="2y">2 years</option>
+        </select>
+      </div>
+
+      <div class="actions">
+        <button id="preview-btn" class="btn">Preview</button>
+        <button id="clean-btn" class="btn btn-danger" disabled>Move to Trash</button>
+      </div>
+
+      <p id="result" class="status" role="status"></p>
+    </section>
+  </main>
+
+  <!-- Confirmation modal -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-box">
+      <h2 id="modal-title">Move messages to Trash?</h2>
+      <p id="modal-body" class="muted"></p>
+      <div id="primary-confirm" class="primary-confirm" hidden>
+        <label for="primary-input">Type <code>PRIMARY</code> to confirm trashing personal mail:</label>
+        <input id="primary-input" type="text" autocomplete="off" placeholder="PRIMARY" />
+      </div>
+      <div class="actions">
+        <button id="modal-cancel" class="btn">Cancel</button>
+        <button id="modal-confirm" class="btn btn-danger">Move to Trash</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

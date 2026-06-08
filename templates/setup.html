@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Set up Gmail Cleaner</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">✉</span> Gmail&nbsp;Cleaner</div>
+    </header>
+
+    <section class="card">
+      <h1>One-time setup</h1>
+      <p class="muted">
+        Gmail Cleaner talks to your mailbox through Google's own API, so you
+        create a free personal credential once. Takes about five minutes.
+      </p>
+
+      <ol class="steps">
+        <li>
+          <strong>Create a Google Cloud project.</strong>
+          <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Open the console ↗</a>
+          and create a project (any name, e.g. <code>gmail-cleanup</code>).
+        </li>
+        <li>
+          <strong>Enable the Gmail API.</strong>
+          <a href="https://console.cloud.google.com/apis/library/gmail.googleapis.com" target="_blank" rel="noopener">Open Gmail API ↗</a>
+          and click <em>Enable</em>.
+        </li>
+        <li>
+          <strong>Set up the OAuth consent screen.</strong>
+          <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank" rel="noopener">Open consent screen ↗</a>:
+          choose <em>External</em>, fill in the app name and your email, and on
+          the <em>Test users</em> step add your own Gmail address. (Test mode is
+          fine — no Google review needed for personal use.)
+        </li>
+        <li>
+          <strong>Create the credential.</strong>
+          <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Open Credentials ↗</a>
+          → <em>Create Credentials</em> → <em>OAuth client ID</em> →
+          application type <strong>Desktop app</strong> → <em>Create</em> →
+          <em>Download JSON</em>.
+        </li>
+        <li>
+          <strong>Drop that JSON below.</strong>
+        </li>
+      </ol>
+
+      <div id="drop" class="dropzone" tabindex="0" role="button" aria-label="Upload credentials JSON">
+        <p><strong>Drag &amp; drop</strong> your downloaded JSON here</p>
+        <p class="muted small">or click to browse</p>
+        <input id="file" type="file" accept="application/json,.json" hidden />
+      </div>
+
+      <p id="setup-status" class="status" role="status"></p>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
